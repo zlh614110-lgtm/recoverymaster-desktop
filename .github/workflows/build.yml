@@ -1,0 +1,128 @@
+     1	name: Build & Release
+     2	
+     3	on:
+     4	  push:
+     5	    tags:
+     6	      - 'v*'
+     7	
+     8	jobs:
+     9	  # macOS Build (Intel + Apple Silicon universal)
+    10	  build-macos:
+    11	    runs-on: macos-latest
+    12	    steps:
+    13	      - name: Checkout
+    14	        uses: actions/checkout@v4
+    15	
+    16	      - name: Setup Node.js
+    17	        uses: actions/setup-node@v4
+    18	        with:
+    19	          node-version: 20
+    20	          cache: 'npm'
+    21	
+    22	      - name: Install dependencies
+    23	        run: npm ci
+    24	
+    25	      - name: Build frontend & electron
+    26	        run: npm run build
+    27	
+    28	      - name: Build macOS .dmg
+    29	        run: npx electron-builder --mac --universal
+    30	        env:
+    31	          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    32	          CSC_IDENTITY_AUTO_DISCOVERY: false
+    33	
+    34	      - name: Upload macOS artifact
+    35	        uses: actions/upload-artifact@v4
+    36	        with:
+    37	          name: macos-dmg
+    38	          path: release/*.dmg
+    39	          if-no-files-found: error
+    40	
+    41	  # Windows Build
+    42	  build-windows:
+    43	    runs-on: windows-latest
+    44	    steps:
+    45	      - name: Checkout
+    46	        uses: actions/checkout@v4
+    47	
+    48	      - name: Setup Node.js
+    49	        uses: actions/setup-node@v4
+    50	        with:
+    51	          node-version: 20
+    52	          cache: 'npm'
+    53	
+    54	      - name: Install dependencies
+    55	        run: npm ci
+    56	
+    57	      - name: Build frontend & electron
+    58	        run: npm run build
+    59	
+    60	      - name: Build Windows .exe
+    61	        run: npx electron-builder --win
+    62	        env:
+    63	          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    64	
+    65	      - name: Upload Windows artifact
+    66	        uses: actions/upload-artifact@v4
+    67	        with:
+    68	          name: windows-exe
+    69	          path: release/*.exe
+    70	          if-no-files-found: error
+    71	
+    72	  # Linux Build
+    73	  build-linux:
+    74	    runs-on: ubuntu-latest
+    75	    steps:
+    76	      - name: Checkout
+    77	        uses: actions/checkout@v4
+    78	
+    79	      - name: Setup Node.js
+    80	        uses: actions/setup-node@v4
+    81	        with:
+    82	          node-version: 20
+    83	          cache: 'npm'
+    84	
+    85	      - name: Install dependencies
+    86	        run: npm ci
+    87	
+    88	      - name: Build frontend & electron
+    89	        run: npm run build
+    90	
+    91	      - name: Build Linux AppImage
+    92	        run: npx electron-builder --linux
+    93	        env:
+    94	          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    95	
+    96	      - name: Upload Linux artifact
+    97	        uses: actions/upload-artifact@v4
+    98	        with:
+    99	          name: linux-appimage
+   100	          path: release/*.AppImage
+   101	          if-no-files-found: error
+   102	
+   103	  # Create GitHub Release with all artifacts
+   104	  release:
+   105	    needs: [build-macos, build-windows, build-linux]
+   106	    runs-on: ubuntu-latest
+   107	    permissions:
+   108	      contents: write
+   109	    steps:
+   110	      - name: Download all artifacts
+   111	        uses: actions/download-artifact@v4
+   112	        with:
+   113	          path: artifacts
+   114	          merge-multiple: true
+   115	
+   116	      - name: List downloaded artifacts
+   117	        run: ls -la artifacts/
+   118	
+   119	      - name: Create GitHub Release
+   120	        uses: softprops/action-gh-release@v1
+   121	        with:
+   122	          files: artifacts/*
+   123	          generate_release_notes: true
+   124	          draft: false
+   125	          prerelease: false
+   126	        env:
+   127	          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+   128	
